@@ -1,3 +1,52 @@
+<?php
+session_start();
+$user_file = 'users.json';
+if (!file_exists($user_file)) file_put_contents($user_file, '[]');
+$users = json_decode(file_get_contents($user_file), true);
+
+$error = "";
+$username = trim($_POST['username'] ?? '');
+$password = $_POST['password'] ?? '';
+
+if (isset($_POST['register'])) {
+    if ($username === '' || $password === '') {
+        $error = "Vui lòng nhập đủ thông tin!";
+    } else {
+        foreach ($users as $u) {
+            if ($u['username'] === $username) {
+                $error = "Tên đăng nhập đã tồn tại!";
+                break;
+            }
+        }
+
+        if (!$error) {
+            $users[] = [
+                'username' => $username,
+                'password' => password_hash($password, PASSWORD_DEFAULT)
+            ];
+            file_put_contents($user_file, json_encode($users, JSON_PRETTY_PRINT));
+            $_SESSION['username'] = $username;
+            header("Location: menu.php");
+            exit;
+        }
+    }
+}
+
+if (isset($_POST['login'])) {
+    if ($username === '' || $password === '') {
+        $error = "Vui lòng nhập đủ thông tin!";
+    } else {
+        foreach ($users as $u) {
+            if ($u['username'] === $username && password_verify($password, $u['password'])) {
+                $_SESSION['username'] = $username;
+                header("Location: menu.php");
+                exit;
+            }
+        }
+        $error = "Sai tài khoản hoặc mật khẩu!";
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -215,27 +264,21 @@
 
 <div class="moon"></div>
 <div class="road"></div>
-<script>
-  for (let i = 0; i < 10; i++) {
-    const line = document.createElement('div');
-    line.className = 'road-line';
-    line.style.animationDelay = `${i * 0.3}s`;
-    document.body.appendChild(line);
-  }
+<?php for ($i = 0; $i < 10; $i++): ?>
+  <div class="road-line" style="animation-delay: <?= $i * 0.3 ?>s"></div>
+<?php endfor; ?>
 
-  const colors = ['#0ff', '#f0f', '#ff0', '#0f0', '#0cf', '#f60', '#f06', '#6ff'];
-  for (let i = 0; i < 35; i++) {
-    const light = document.createElement('div');
-    light.className = 'light';
-    const color = colors[Math.floor(Math.random() * colors.length)];
-    light.style.left = `${Math.random() * 100}%`;
-    light.style.background = `linear-gradient(to bottom, ${color}, transparent)`;
-    light.style.animationDelay = `${Math.random() * 3}s`;
-    document.body.querySelector('.lights')?.appendChild(light);
+<div class="lights">
+  <?php
+  $colors = ['#0ff', '#f0f', '#ff0', '#0f0', '#0cf', '#f60', '#f06', '#6ff'];
+  for ($i = 0; $i < 35; $i++) {
+    $color = $colors[array_rand($colors)];
+    $left = rand(0, 100);
+    $delay = rand(0, 3000) / 1000;
+    echo "<div class='light' style='left: {$left}%; background: linear-gradient(to bottom, $color, transparent); animation-delay: {$delay}s;'></div>";
   }
-</script>
-
-<div class="lights"></div>
+  ?>
+</div>
 
 <div class="music-toggle" onclick="toggleMusic()">🎵 Bật nhạc</div>
 <audio id="bg-music" loop>
@@ -244,7 +287,7 @@
 
 <div class="container">
   <h2 id="form-title">Đăng nhập</h2>
-  <form id="form">
+  <form method="POST" id="form">
     <div class="input-group">
       <i class="ri-user-fill"></i>
       <input type="text" name="username" placeholder="Tên đăng nhập" required>
@@ -253,9 +296,8 @@
       <i class="ri-lock-fill"></i>
       <input type="password" name="password" placeholder="Mật khẩu" required>
     </div>
-    <button type="submit" class="btn" id="submit-btn">Đăng nhập</button>
+    <button type="submit" name="login" class="btn" id="submit-btn">Đăng nhập</button>
   </form>
-  <div class="message" id="message"></div>
   <div class="switch">
     Chưa có tài khoản? <a href="#" onclick="switchForm()">Đăng ký</a>
   </div>
@@ -263,76 +305,38 @@
 
 <script>
   let mode = "login";
+function switchForm() {
+  const title = document.getElementById("form-title");
+  const btn = document.getElementById("submit-btn");
+  const switchDiv = document.querySelector('.switch');
 
-  function switchForm() {
-    const title = document.getElementById("form-title");
-    const btn = document.getElementById("submit-btn");
-    const switchDiv = document.querySelector('.switch');
-
-    if (mode === "login") {
-      mode = "register";
-      title.innerText = "Đăng ký";
-      btn.innerText = "Đăng ký";
-      switchDiv.innerHTML = `Đã có tài khoản? <a href="#" onclick="switchForm()">Đăng nhập</a>`;
-    } else {
-      mode = "login";
-      title.innerText = "Đăng nhập";
-      btn.innerText = "Đăng nhập";
-      switchDiv.innerHTML = `Chưa có tài khoản? <a href="#" onclick="switchForm()">Đăng ký</a>`;
-    }
+  if (mode === "login") {
+    mode = "register";
+    title.innerText = "Đăng ký";
+    btn.innerText = "Đăng ký";
+    btn.name = "register";
+    switchDiv.innerHTML = `Đã có tài khoản? <a href=\"#\" onclick=\"switchForm()\">Đăng nhập</a>`;
+  } else {
+    mode = "login";
+    title.innerText = "Đăng nhập";
+    btn.innerText = "Đăng nhập";
+    btn.name = "login";
+    switchDiv.innerHTML = `Chưa có tài khoản? <a href=\"#\" onclick=\"switchForm()\">Đăng ký</a>`;
   }
+}
 
-  function toggleMusic() {
-    const audio = document.getElementById("bg-music");
-    const toggleBtn = document.querySelector(".music-toggle");
-    if (audio.paused) {
-      audio.play();
-      toggleBtn.innerText = "🎵 Tắt nhạc";
-    } else {
-      audio.pause();
-      toggleBtn.innerText = "🎵 Bật nhạc";
-    }
+function toggleMusic() {
+  const audio = document.getElementById("bg-music");
+  const toggleBtn = document.querySelector(".music-toggle");
+  if (audio.paused) {
+    audio.play();
+    toggleBtn.innerText = "🎵 Tắt nhạc";
+  } else {
+    audio.pause();
+    toggleBtn.innerText = "🎵 Bật nhạc";
   }
-
-  document.getElementById('form').addEventListener('submit', function (e) {
-    e.preventDefault();
-    const username = this.username.value.trim();
-    const password = this.password.value;
-    const message = document.getElementById('message');
-
-    if (!username || !password) {
-      message.textContent = "Vui lòng nhập đủ thông tin!";
-      return;
-    }
-
-    let users = JSON.parse(localStorage.getItem('users') || '[]');
-
-    if (mode === "register") {
-      const exists = users.some(u => u.username === username);
-      if (exists) {
-        message.textContent = "Tên đăng nhập đã tồn tại!";
-        return;
-      }
-
-      users.push({ username, password: btoa(password) });
-      localStorage.setItem('users', JSON.stringify(users));
-      message.style.color = "lightgreen";
-      message.textContent = "Đăng ký thành công! Tự động chuyển sang đăng nhập...";
-      setTimeout(() => switchForm(), 1500);
-    } else {
-      const user = users.find(u => u.username === username && u.password === btoa(password));
-      if (user) {
-        message.style.color = "lightgreen";
-        message.textContent = "Đăng nhập thành công!";
-        setTimeout(() => {
-          window.location.href = "menu.php"; // Giả định bạn có file menu.html
-        }, 1000);
-      } else {
-        message.textContent = "Sai tài khoản hoặc mật khẩu!";
-      }
-    }
-  });
-</script>
+}
+<script>
 
 </body>
 </html>
